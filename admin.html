@@ -4,7 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Breaker Admin</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Config -->
+  <script src="config.js"></script>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -14,6 +21,90 @@
       color: white;
       font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
     }
+
+    /* ── PIN Screen ───────────────────────────────────────── */
+    #pin-screen {
+      position: fixed; inset: 0;
+      background: #0a0a0a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+    }
+
+    #pin-box {
+      width: 100%;
+      max-width: 340px;
+      padding: 0 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    #pin-logo {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #444;
+      margin-bottom: 8px;
+    }
+
+    #pin-heading {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      text-align: center;
+    }
+
+    #pin-sub {
+      font-size: 13px;
+      color: #555;
+      text-align: center;
+      margin-top: -8px;
+    }
+
+    #pin-input {
+      width: 100%;
+      background: #141414;
+      border: 1px solid #2a2a2a;
+      border-radius: 10px;
+      padding: 14px 16px;
+      color: white;
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.25em;
+      text-align: center;
+      outline: none;
+      transition: border-color 0.2s;
+      margin-top: 8px;
+    }
+    #pin-input:focus { border-color: #B60006; }
+
+    #pin-btn {
+      width: 100%;
+      padding: 13px;
+      border-radius: 10px;
+      border: none;
+      background: #B60006;
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    #pin-btn:hover { background: #d4000a; }
+
+    #pin-error {
+      font-size: 13px;
+      color: #cc4444;
+      min-height: 18px;
+      text-align: center;
+    }
+
+    /* ── Admin App ────────────────────────────────────────── */
+    #admin-app { display: none; }
 
     .card {
       background: #141414;
@@ -61,26 +152,14 @@
     }
     .btn:hover { background: #262626; color: white; }
 
-    .btn-primary {
-      background: #B60006;
-      border-color: #9a0005;
-      color: white;
-    }
+    .btn-primary { background: #B60006; border-color: #9a0005; color: white; }
     .btn-primary:hover { background: #d4000a; }
 
-    .btn-danger {
-      background: transparent;
-      border-color: #3a1010;
-      color: #cc4444;
-    }
-    .btn-danger:hover { background: #1a0808; border-color: #aa3333; }
-
-    .btn-outline {
-      background: transparent;
-      border-color: #2a2a2a;
-      color: #888;
-    }
+    .btn-outline { background: transparent; border-color: #2a2a2a; color: #888; }
     .btn-outline:hover { background: #1a1a1a; color: white; }
+
+    .btn-danger { background: transparent; border-color: #3a1010; color: #cc4444; }
+    .btn-danger:hover { background: #1a0808; border-color: #aa3333; }
 
     .theme-swatch {
       width: 36px; height: 36px;
@@ -110,10 +189,9 @@
       border-radius: 50%;
       background: currentColor;
     }
-
-    .badge-running  { background: rgba(34,197,94,0.12);  color: #22c55e; }
-    .badge-paused   { background: rgba(234,179,8,0.12);  color: #eab308; }
-    .badge-stopped  { background: rgba(255,255,255,0.06); color: #555; }
+    .badge-running { background: rgba(34,197,94,0.12);   color: #22c55e; }
+    .badge-paused  { background: rgba(234,179,8,0.12);   color: #eab308; }
+    .badge-stopped { background: rgba(255,255,255,0.06); color: #555; }
 
     #timer-display {
       font-size: 3rem;
@@ -124,142 +202,202 @@
       font-family: ui-monospace, monospace;
     }
 
-    #connection-dot {
+    #fb-dot {
       width: 7px; height: 7px;
       border-radius: 50%;
+      background: #555;
+      transition: background 0.3s, box-shadow 0.3s;
+    }
+    #fb-dot.connected {
       background: #22c55e;
       box-shadow: 0 0 6px #22c55e;
       animation: pulse 2s infinite;
     }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
-    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
   </style>
 </head>
-<body class="min-h-screen">
+<body>
 
-  <!-- Top bar -->
-  <div style="background:#0a0a0a; border-bottom:1px solid #1a1a1a; position:sticky; top:0; z-index:10;">
-    <div style="max-width:780px; margin:0 auto; padding:14px 24px; display:flex; align-items:center; justify-content:space-between;">
-      <div style="display:flex; align-items:center; gap:10px;">
-        <div id="connection-dot"></div>
-        <span style="font-weight:700; font-size:15px; letter-spacing:-0.01em;">Breaker Admin</span>
-      </div>
-      <a href="index.html" target="_blank" class="btn btn-outline" style="font-size:12px; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
-        Open Display
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-      </a>
+  <!-- ── PIN Screen ──────────────────────────────────────────────────────── -->
+  <div id="pin-screen">
+    <div id="pin-box">
+      <div id="pin-logo">Breaker</div>
+      <div id="pin-heading">Admin Access</div>
+      <div id="pin-sub">Enter your PIN to continue</div>
+      <input id="pin-input" type="password" maxlength="12" placeholder="••••" autocomplete="off">
+      <div id="pin-error"></div>
+      <button id="pin-btn">Unlock</button>
     </div>
   </div>
 
-  <!-- Main -->
-  <div style="max-width:780px; margin:0 auto; padding:28px 24px 48px; display:flex; flex-direction:column; gap:16px;">
+  <!-- ── Admin App ───────────────────────────────────────────────────────── -->
+  <div id="admin-app">
 
-    <!-- Live Status -->
-    <div class="card" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
-      <div>
-        <span class="label" style="margin-bottom:6px;">Live Timer</span>
-        <div id="timer-display">00:00</div>
-      </div>
-      <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
-        <div id="status-badge" class="badge badge-stopped">Stopped</div>
-        <div id="live-clock-admin" style="font-size:12px; color:#444; font-variant-numeric:tabular-nums;"></div>
-      </div>
-    </div>
-
-    <!-- Event Info -->
-    <div class="card" style="display:flex; flex-direction:column; gap:14px;">
-      <div style="font-size:13px; font-weight:600; color:#666; margin-bottom:-2px;">Event Info</div>
-      <div>
-        <label class="label" for="inp-title">Title</label>
-        <input id="inp-title" class="input" type="text" placeholder="Event title…">
-      </div>
-      <div>
-        <label class="label" for="inp-subtitle">Subtitle</label>
-        <input id="inp-subtitle" class="input" type="text" placeholder="Subtitle…">
+    <!-- Top bar -->
+    <div style="background:#0a0a0a;border-bottom:1px solid #1a1a1a;position:sticky;top:0;z-index:10;">
+      <div style="max-width:780px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div id="fb-dot"></div>
+          <span style="font-weight:700;font-size:15px;letter-spacing:-0.01em;">Breaker Admin</span>
+          <span id="fb-status" style="font-size:11px;color:#444;">connecting…</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button id="btn-lock" class="btn btn-outline" style="font-size:12px;">Lock</button>
+          <a href="index.html" target="_blank" class="btn btn-outline" style="font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
+            Open Display
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          </a>
+        </div>
       </div>
     </div>
 
-    <!-- Timer Controls -->
-    <div class="card" style="display:flex; flex-direction:column; gap:14px;">
-      <div style="font-size:13px; font-weight:600; color:#666; margin-bottom:-2px;">Timer Controls</div>
+    <!-- Main content -->
+    <div style="max-width:780px;margin:0 auto;padding:28px 24px 48px;display:flex;flex-direction:column;gap:16px;">
 
-      <div>
-        <label class="label" for="inp-datetime">Countdown To</label>
-        <input id="inp-datetime" class="input" type="datetime-local">
-      </div>
-
-      <div>
-        <label class="label">Quick Add</label>
-        <div style="display:flex; gap:8px;">
-          <button class="btn flex-1 quick-add" data-min="5" style="flex:1;">+5 min</button>
-          <button class="btn flex-1 quick-add" data-min="10" style="flex:1;">+10 min</button>
-          <button class="btn flex-1 quick-add" data-min="15" style="flex:1;">+15 min</button>
-          <button class="btn flex-1 quick-add" data-min="30" style="flex:1;">+30 min</button>
+      <!-- Live Status -->
+      <div class="card" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+        <div>
+          <span class="label" style="margin-bottom:6px;">Live Timer</span>
+          <div id="timer-display">00:00</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+          <div id="status-badge" class="badge badge-stopped">Stopped</div>
+          <div id="live-clock-admin" style="font-size:12px;color:#444;font-variant-numeric:tabular-nums;"></div>
         </div>
       </div>
 
-      <div style="display:flex; gap:8px;">
-        <button id="btn-pause-resume" class="btn btn-primary" style="flex:1;">Pause</button>
-        <button id="btn-reset" class="btn" style="flex:1;">Reset</button>
+      <!-- Event Info -->
+      <div class="card" style="display:flex;flex-direction:column;gap:14px;">
+        <div style="font-size:13px;font-weight:600;color:#666;margin-bottom:-2px;">Event Info</div>
+        <div>
+          <label class="label" for="inp-title">Title</label>
+          <input id="inp-title" class="input" type="text" placeholder="Event title…">
+        </div>
+        <div>
+          <label class="label" for="inp-subtitle">Subtitle</label>
+          <input id="inp-subtitle" class="input" type="text" placeholder="Subtitle…">
+        </div>
       </div>
-    </div>
 
-    <!-- Theme -->
-    <div class="card" style="display:flex; flex-direction:column; gap:14px;">
-      <div style="font-size:13px; font-weight:600; color:#666; margin-bottom:-2px;">Theme</div>
-      <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-        <div class="theme-swatch active" data-theme="crimson"
-          style="background:radial-gradient(circle, #B60006, #8A0005, #2A0002);" title="Crimson"></div>
-        <div class="theme-swatch" data-theme="midnight"
-          style="background:radial-gradient(circle, #1236d9, #0c22cc, #060D1A);" title="Midnight"></div>
-        <div class="theme-swatch" data-theme="ember"
-          style="background:radial-gradient(circle, #FF6B00, #FFD700, #1A0E00);" title="Ember"></div>
-        <span id="theme-name" style="font-size:13px; color:#555; margin-left:4px;">Crimson</span>
+      <!-- Timer Controls -->
+      <div class="card" style="display:flex;flex-direction:column;gap:14px;">
+        <div style="font-size:13px;font-weight:600;color:#666;margin-bottom:-2px;">Timer Controls</div>
+        <div>
+          <label class="label" for="inp-datetime">Countdown To</label>
+          <input id="inp-datetime" class="input" type="datetime-local">
+        </div>
+        <div>
+          <label class="label">Quick Add</label>
+          <div style="display:flex;gap:8px;">
+            <button class="btn quick-add" data-min="5"  style="flex:1;">+5 min</button>
+            <button class="btn quick-add" data-min="10" style="flex:1;">+10 min</button>
+            <button class="btn quick-add" data-min="15" style="flex:1;">+15 min</button>
+            <button class="btn quick-add" data-min="30" style="flex:1;">+30 min</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button id="btn-pause-resume" class="btn btn-primary" style="flex:1;">Pause</button>
+          <button id="btn-reset" class="btn" style="flex:1;">Reset</button>
+        </div>
       </div>
-    </div>
 
-    <!-- Danger -->
-    <div class="card" style="border-color:#2a1010;">
-      <div style="font-size:13px; font-weight:600; color:#666; margin-bottom:14px;">Danger Zone</div>
-      <button id="btn-clear" class="btn btn-danger" style="width:100%;">Clear All Data &amp; Reset</button>
-    </div>
+      <!-- Theme -->
+      <div class="card" style="display:flex;flex-direction:column;gap:14px;">
+        <div style="font-size:13px;font-weight:600;color:#666;margin-bottom:-2px;">Theme</div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <div class="theme-swatch active" data-theme="crimson"
+            style="background:radial-gradient(circle,#B60006,#8A0005,#2A0002);" title="Crimson"></div>
+          <div class="theme-swatch" data-theme="midnight"
+            style="background:radial-gradient(circle,#1236d9,#0c22cc,#060D1A);" title="Midnight"></div>
+          <div class="theme-swatch" data-theme="ember"
+            style="background:radial-gradient(circle,#FF6B00,#FFD700,#1A0E00);" title="Ember"></div>
+          <span id="theme-name" style="font-size:13px;color:#555;margin-left:4px;">Crimson</span>
+        </div>
+      </div>
 
+      <!-- Danger -->
+      <div class="card" style="border-color:#2a1010;">
+        <div style="font-size:13px;font-weight:600;color:#666;margin-bottom:14px;">Danger Zone</div>
+        <button id="btn-clear" class="btn btn-danger" style="width:100%;">Clear All Data &amp; Reset</button>
+      </div>
+
+    </div>
   </div>
 
   <script>
-    // ─── STATE ───────────────────────────────────────────────────────────────
-    const STORAGE_KEY = 'breaker_state';
-    const defaultState = { endTime:null, paused:false, remaining:0, theme:'crimson', title:'', subtitle:'' };
-    let state = { ...defaultState };
+    // ─── Firebase init ────────────────────────────────────────────────────────
+    firebase.initializeApp(FIREBASE_CONFIG);
+    const db = firebase.database();
 
-    function loadState() {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) state = { ...defaultState, ...JSON.parse(raw) };
-      } catch(e) {}
+    // ─── PIN gate ─────────────────────────────────────────────────────────────
+    const $pinScreen = document.getElementById('pin-screen');
+    const $adminApp  = document.getElementById('admin-app');
+    const $pinInput  = document.getElementById('pin-input');
+    const $pinBtn    = document.getElementById('pin-btn');
+    const $pinError  = document.getElementById('pin-error');
+
+    function unlock() {
+      if ($pinInput.value === ADMIN_PIN) {
+        sessionStorage.setItem('breaker_unlocked', '1');
+        $pinScreen.style.display = 'none';
+        $adminApp.style.display = 'block';
+        initAdmin();
+      } else {
+        $pinError.textContent = 'Incorrect PIN. Try again.';
+        $pinInput.value = '';
+        $pinInput.focus();
+      }
     }
 
-    function saveAndBroadcast() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      channel.postMessage({ type:'state_update', state: { ...state } });
+    $pinBtn.addEventListener('click', unlock);
+    $pinInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') unlock(); });
+
+    // Skip PIN if already unlocked this session
+    if (sessionStorage.getItem('breaker_unlocked') === '1') {
+      $pinScreen.style.display = 'none';
+      $adminApp.style.display  = 'block';
+      initAdmin();
+    }
+
+    // Lock button
+    document.getElementById('btn-lock').addEventListener('click', () => {
+      sessionStorage.removeItem('breaker_unlocked');
+      location.reload();
+    });
+
+    // ─── State ────────────────────────────────────────────────────────────────
+    const defaultState = { endTime:null, paused:false, remaining:0, theme:'crimson', title:'', subtitle:'' };
+    let state = { ...defaultState };
+    let fbInitialized = false;
+
+    function pushState() {
+      db.ref('state').set({ ...state });
     }
 
     function clearStateData() {
       state = { ...defaultState };
-      localStorage.removeItem(STORAGE_KEY);
-      channel.postMessage({ type:'state_update', state: { ...state } });
+      db.ref('state').set({ ...state });
     }
 
-    // ─── BROADCAST CHANNEL ───────────────────────────────────────────────────
-    const channel = new BroadcastChannel('breaker');
+    // ─── Firebase connection indicator ────────────────────────────────────────
+    const $fbDot    = document.getElementById('fb-dot');
+    const $fbStatus = document.getElementById('fb-status');
 
-    // ─── TIMER HELPERS ───────────────────────────────────────────────────────
+    firebase.database().ref('.info/connected').on('value', (snap) => {
+      if (snap.val()) {
+        $fbDot.classList.add('connected');
+        $fbStatus.textContent = 'connected';
+      } else {
+        $fbDot.classList.remove('connected');
+        $fbStatus.textContent = 'offline';
+      }
+    });
+
+    // ─── Timer helpers ────────────────────────────────────────────────────────
     function getRemainingMs() {
       if (state.paused) return state.remaining;
       if (!state.endTime) return 0;
@@ -278,21 +416,20 @@
       return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
     }
 
-    // ─── DOM ─────────────────────────────────────────────────────────────────
-    const $timerDisplay    = document.getElementById('timer-display');
-    const $statusBadge     = document.getElementById('status-badge');
-    const $clockAdmin      = document.getElementById('live-clock-admin');
-    const $inpTitle        = document.getElementById('inp-title');
-    const $inpSubtitle     = document.getElementById('inp-subtitle');
-    const $inpDatetime     = document.getElementById('inp-datetime');
-    const $btnPauseResume  = document.getElementById('btn-pause-resume');
-    const $btnReset        = document.getElementById('btn-reset');
-    const $btnClear        = document.getElementById('btn-clear');
-    const $themeName       = document.getElementById('theme-name');
+    // ─── DOM refs ─────────────────────────────────────────────────────────────
+    const $timerDisplay   = document.getElementById('timer-display');
+    const $statusBadge    = document.getElementById('status-badge');
+    const $clockAdmin     = document.getElementById('live-clock-admin');
+    const $inpTitle       = document.getElementById('inp-title');
+    const $inpSubtitle    = document.getElementById('inp-subtitle');
+    const $inpDatetime    = document.getElementById('inp-datetime');
+    const $btnPauseResume = document.getElementById('btn-pause-resume');
+    const $btnReset       = document.getElementById('btn-reset');
+    const $btnClear       = document.getElementById('btn-clear');
+    const $themeName      = document.getElementById('theme-name');
+    const THEME_LABELS    = { crimson:'Crimson', midnight:'Midnight', ember:'Ember' };
 
-    const THEME_LABELS = { crimson:'Crimson', midnight:'Midnight', ember:'Ember' };
-
-    // ─── UI UPDATE ───────────────────────────────────────────────────────────
+    // ─── UI update ────────────────────────────────────────────────────────────
     function updateUI() {
       const ms = getRemainingMs();
       const st = getTimerState();
@@ -300,123 +437,119 @@
       $timerDisplay.textContent = msToMMSS(ms);
 
       $statusBadge.textContent = st;
-      $statusBadge.className = 'badge ' + (
-        st === 'Running' ? 'badge-running' :
-        st === 'Paused'  ? 'badge-paused'  : 'badge-stopped'
-      );
+      $statusBadge.className   = 'badge badge-' + st.toLowerCase();
 
       $btnPauseResume.textContent = st === 'Paused' ? 'Resume' : 'Pause';
-      $btnPauseResume.className = 'btn ' + (st === 'Paused' ? 'btn-outline' : 'btn-primary');
+      $btnPauseResume.className   = 'btn ' + (st === 'Paused' ? 'btn-outline' : 'btn-primary');
 
-      // Theme swatches
-      document.querySelectorAll('.theme-swatch').forEach(s => {
-        s.classList.toggle('active', s.dataset.theme === state.theme);
-      });
+      document.querySelectorAll('.theme-swatch').forEach(s =>
+        s.classList.toggle('active', s.dataset.theme === state.theme));
       $themeName.textContent = THEME_LABELS[state.theme] || state.theme;
 
-      // Inputs (only if not focused)
-      if (document.activeElement !== $inpTitle) $inpTitle.value = state.title;
+      if (document.activeElement !== $inpTitle)    $inpTitle.value    = state.title;
       if (document.activeElement !== $inpSubtitle) $inpSubtitle.value = state.subtitle;
     }
 
-    // Live clock
     function updateClock() {
       $clockAdmin.textContent = new Date().toLocaleTimeString('en-US', { hour12: false });
     }
-    updateClock();
-    setInterval(updateClock, 1000);
 
-    // Tick
-    setInterval(updateUI, 250);
+    // ─── Init admin (called after PIN unlock) ─────────────────────────────────
+    function initAdmin() {
+      // Live clock
+      updateClock();
+      setInterval(updateClock, 1000);
 
-    // ─── EVENT WIRING ────────────────────────────────────────────────────────
+      // Tick for timer display
+      setInterval(updateUI, 250);
 
-    // Title
-    $inpTitle.addEventListener('input', () => {
-      state.title = $inpTitle.value;
-      saveAndBroadcast();
-    });
+      // Listen to Firebase for state (keeps admin in sync if multiple admins, or on refresh)
+      db.ref('state').on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          // Merge, preserving any keys not in Firebase
+          state = { ...defaultState, ...data };
+        }
+        if (!fbInitialized) { fbInitialized = true; updateUI(); }
+      });
 
-    // Subtitle
-    $inpSubtitle.addEventListener('input', () => {
-      state.subtitle = $inpSubtitle.value;
-      saveAndBroadcast();
-    });
+      // ── Event wiring ──────────────────────────────────────────────────────
 
-    // Datetime picker
-    $inpDatetime.addEventListener('change', () => {
-      const val = $inpDatetime.value;
-      if (!val) return;
-      const target = new Date(val).getTime();
-      if (target > Date.now()) {
-        state.endTime = target;
-        state.paused = false;
-        state.remaining = 0;
-        saveAndBroadcast();
-        $inpDatetime.value = '';
-      }
-    });
+      $inpTitle.addEventListener('input', () => {
+        state.title = $inpTitle.value;
+        pushState();
+      });
 
-    // Quick add
-    document.querySelectorAll('.quick-add').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const addMs = parseInt(btn.dataset.min, 10) * 60000;
+      $inpSubtitle.addEventListener('input', () => {
+        state.subtitle = $inpSubtitle.value;
+        pushState();
+      });
+
+      $inpDatetime.addEventListener('change', () => {
+        const val = $inpDatetime.value;
+        if (!val) return;
+        const target = new Date(val).getTime();
+        if (target > Date.now()) {
+          state.endTime   = target;
+          state.paused    = false;
+          state.remaining = 0;
+          pushState();
+          $inpDatetime.value = '';
+        }
+      });
+
+      document.querySelectorAll('.quick-add').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const addMs = parseInt(btn.dataset.min, 10) * 60000;
+          const st    = getTimerState();
+          if (st === 'Running') {
+            state.endTime += addMs;
+          } else if (st === 'Paused') {
+            state.remaining += addMs;
+          } else {
+            state.endTime   = Date.now() + addMs;
+            state.paused    = false;
+            state.remaining = 0;
+          }
+          pushState();
+        });
+      });
+
+      $btnPauseResume.addEventListener('click', () => {
         const st = getTimerState();
         if (st === 'Running') {
-          state.endTime += addMs;
-        } else if (st === 'Paused') {
-          state.remaining += addMs;
-        } else {
-          state.endTime = Date.now() + addMs;
-          state.paused = false;
+          state.remaining = Math.max(0, state.endTime - Date.now());
+          state.paused    = true;
+          state.endTime   = null;
+        } else if (st === 'Paused' && state.remaining > 0) {
+          state.endTime   = Date.now() + state.remaining;
+          state.paused    = false;
           state.remaining = 0;
         }
-        saveAndBroadcast();
+        pushState();
       });
-    });
 
-    // Pause / Resume
-    $btnPauseResume.addEventListener('click', () => {
-      const st = getTimerState();
-      if (st === 'Running') {
-        state.remaining = Math.max(0, state.endTime - Date.now());
-        state.paused = true;
-        state.endTime = null;
-      } else if (st === 'Paused' && state.remaining > 0) {
-        state.endTime = Date.now() + state.remaining;
-        state.paused = false;
+      $btnReset.addEventListener('click', () => {
+        state.endTime   = null;
+        state.paused    = false;
         state.remaining = 0;
-      }
-      saveAndBroadcast();
-    });
+        pushState();
+      });
 
-    // Reset
-    $btnReset.addEventListener('click', () => {
-      state.endTime = null;
-      state.paused = false;
-      state.remaining = 0;
-      saveAndBroadcast();
-    });
+      document.querySelectorAll('.theme-swatch').forEach(swatch => {
+        swatch.addEventListener('click', () => {
+          state.theme = swatch.dataset.theme;
+          pushState();
+          updateUI();
+        });
+      });
 
-    // Theme swatches
-    document.querySelectorAll('.theme-swatch').forEach(swatch => {
-      swatch.addEventListener('click', () => {
-        state.theme = swatch.dataset.theme;
-        saveAndBroadcast();
+      $btnClear.addEventListener('click', () => {
+        if (!confirm('Reset everything? This clears timer, title, subtitle and theme.')) return;
+        clearStateData();
         updateUI();
       });
-    });
-
-    // Clear all
-    $btnClear.addEventListener('click', () => {
-      if (!confirm('Reset everything? This clears timer, title, subtitle and theme.')) return;
-      clearStateData();
-      updateUI();
-    });
-
-    // ─── INIT ────────────────────────────────────────────────────────────────
-    loadState();
-    updateUI();
+    }
   </script>
 </body>
 </html>
